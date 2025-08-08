@@ -1,0 +1,6 @@
+{
+    "name": "makehaven/slack_event_poster",
+    "type": "drupal-custom-module",
+    "description": "Posts event content to Slack when a CiviCRM event is published.",
+    "license": "GPL-2.0-or-later"
+}

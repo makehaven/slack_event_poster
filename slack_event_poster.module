@@ -1,0 +1,108 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_entity_insert().
+ *
+ * Fires when a new CiviCRM event is created.
+ */
+function slack_event_poster_entity_insert(EntityInterface $entity) {
+  if ($entity->getEntityTypeId() === 'civicrm_event') {
+    _slack_event_poster_send_to_slack_for_civicrm($entity);
+  }
+}
+
+/**
+ * Sends event details to Slack for a CiviCRM event entity.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $event
+ *   The CiviCRM event entity.
+ */
+function _slack_event_poster_send_to_slack_for_civicrm(EntityInterface $event) {
+  // Load Slack webhook URL from Slack Connector configuration.
+  $connector_config = \Drupal::config('slack_connector.settings');
+  $webhook_url = $connector_config->get('webhook_url');
+
+  if (empty($webhook_url)) {
+    \Drupal::logger('slack_event_poster')->error('Slack webhook URL is not configured in Slack Connector.');
+    return;
+  }
+
+  // Load general events channel from this module's configuration.
+  $config = \Drupal::config('slack_event_poster.settings');
+  $general_channel = $config->get('general_channel');
+
+  // Get event title.
+  $title = $event->label();
+
+  // Format event date. (Assumes field "field_civi_event_sessions" holds a date.)
+  $event_date = '';
+  if (!$event->get('field_civi_event_sessions')->isEmpty()) {
+    $date_raw = $event->get('field_civi_event_sessions')->value;
+    $event_date = date('Y-m-d', strtotime($date_raw));
+  }
+
+  // Build the base Slack payload.
+  $data = [
+    'text' => $title,
+    'blocks' => [
+      [
+        'type' => 'section',
+        'text' => [
+          'type' => 'mrkdwn',
+          'text' => "*" . $title . "*\n" .
+                    "Date: " . $event_date,
+        ],
+      ],
+    ],
+  ];
+
+  // Post to the general events channel.
+  $general_payload = $data;
+  if (!empty($general_channel)) {
+    $general_payload['channel'] = $general_channel;
+  }
+  _slack_event_poster_post_to_slack($webhook_url, $general_payload);
+
+  // Check for an area-specific Slack channel.
+  if (!$event->get('field_civi_event_area_interest')->isEmpty()) {
+    // Load the referenced taxonomy term.
+    $term = $event->get('field_civi_event_area_interest')->entity;
+    if ($term && !$term->get('field_interest_slack_channel')->isEmpty()) {
+      $area_channel = $term->get('field_interest_slack_channel')->value;
+      if (!empty($area_channel)) {
+        $area_payload = $data;
+        $area_payload['channel'] = $area_channel;
+        _slack_event_poster_post_to_slack($webhook_url, $area_payload);
+      }
+    }
+  }
+}
+
+/**
+ * Posts data to Slack using the provided webhook URL.
+ *
+ * @param string $webhook_url
+ *   The Slack webhook URL.
+ * @param array $payload
+ *   The payload to send.
+ */
+function _slack_event_poster_post_to_slack($webhook_url, array $payload) {
+  try {
+    $client = \Drupal::httpClient();
+    $response = $client->post($webhook_url, [
+      'headers' => ['Content-Type' => 'application/json'],
+      'json' => $payload,
+    ]);
+    \Drupal::logger('slack_event_poster')->notice('Slack response: @response', [
+      '@response' => $response->getBody()->getContents(),
+    ]);
+  }
+  catch (\Exception $e) {
+    \Drupal::logger('slack_event_poster')->error('Error posting to Slack: @error', [
+      '@error' => $e->getMessage(),
+    ]);
+  }
+}

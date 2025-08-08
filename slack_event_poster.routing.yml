@@ -1,0 +1,7 @@
+slack_event_poster.settings:
+  path: '/admin/config/services/slack-event-poster'
+  defaults:
+    _form: '\Drupal\slack_event_poster\Form\SlackEventPosterSettingsForm'
+    _title: 'Slack Event Poster Settings'
+  requirements:
+    _permission: 'administer site configuration'

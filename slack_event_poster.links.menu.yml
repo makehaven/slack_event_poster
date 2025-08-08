@@ -1,0 +1,6 @@
+slack_event_poster.settings:
+  title: 'Slack Event Poster Settings'
+  description: 'Configure Slack settings for event posting.'
+  parent: system.admin_config_services
+  route_name: slack_event_poster.settings
+  weight: 100
