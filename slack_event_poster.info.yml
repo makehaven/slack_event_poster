@@ -3,6 +3,7 @@ type: module
 description: 'Posts event content to Slack when a CiviCRM event is published.'
 core_version_requirement: ^10 || ^11
 version: '1.0'
-package: Custom
+package: Makerspace
 dependencies:
   - drupal:slack_connector
+configure: slack_event_poster.settings
